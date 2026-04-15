@@ -49,3 +49,40 @@ def query_chunks(document_id: str, question: str) -> list[str]:
     )
     documents = results.get("documents", [[]])[0]
     return [doc for doc in documents if doc]
+
+
+def get_all_chunks(document_id: str) -> list[str]:
+    """Return every stored chunk for a document (used for summarization)."""
+    collection = _collection(document_id)
+    count = collection.count()
+    if count == 0:
+        return []
+    results = collection.get()
+    return [doc for doc in (results.get("documents") or []) if doc]
+
+
+def list_documents() -> list[dict]:
+    """Return all document collections with their chunk counts."""
+    client = _get_client()
+    collections = client.list_collections()
+    documents = []
+    for col in collections:
+        if col.name.startswith("doc_"):
+            document_id = col.name[4:]  # strip "doc_" prefix
+            full_col = client.get_collection(
+                name=col.name,
+                embedding_function=_get_embed_fn(),
+            )
+            documents.append({"document_id": document_id, "chunk_count": full_col.count()})
+    return documents
+
+
+def delete_document(document_id: str) -> bool:
+    """Delete a document's collection. Returns False if it didn't exist."""
+    client = _get_client()
+    collection_name = f"doc_{document_id}"
+    try:
+        client.delete_collection(name=collection_name)
+        return True
+    except Exception:
+        return False
